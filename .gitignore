@@ -1,0 +1,52 @@
+# ── Secrets & credentials — NEVER commit ─────────────────────
+.env
+.env.*
+!.env.example
+*.env.local
+
+# Baileys / WhatsApp session & auth material (full account control)
+auth_info/
+auth_info*/
+baileys_store*
+session/
+sessions/
+*.creds.json
+creds.json
+pre-key-*.json
+sender-key-*.json
+app-state-sync-*.json
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# ── Node ──────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+
+# ── Uploads / media (stored server-side, not in git) ──────────
+backend/media_storage/
+
+# ── OS / editor ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ── Logs & backups ────────────────────────────────────────────
+*.log
+logs/
+*.dump
+*.sql.gz
