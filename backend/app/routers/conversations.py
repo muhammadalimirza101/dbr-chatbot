@@ -171,6 +171,11 @@ async def agent_reply(
     conversation_id: int, body: AgentReply, user: CurrentUser, db: DbSession
 ) -> MessageOut:
     conversation = await _conversation_or_404(db, conversation_id)
+    if conversation.bot_active:
+        # prevents the customer getting a bot reply AND an agent reply
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "take over the conversation before replying"
+        )
     customer = await db.get(Customer, conversation.customer_id)
     try:
         await connector.send_text(customer.phone, body.text)
