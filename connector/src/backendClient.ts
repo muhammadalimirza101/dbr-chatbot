@@ -33,11 +33,17 @@ export class BackendClient {
           body: JSON.stringify(message),
           signal: AbortSignal.timeout(30_000),
         });
-        if (response.ok) return;
+        if (response.ok) {
+          console.log(
+            `inbound ${message.providerMessageId} (${message.contentType}) → backend ok`,
+          );
+          return;
+        }
         // 4xx = backend rejected it (bad payload/secret) — retrying won't help
         if (response.status >= 400 && response.status < 500) {
           console.error(
-            `backend rejected inbound ${message.providerMessageId}: HTTP ${response.status}`,
+            `backend REJECTED inbound ${message.providerMessageId}: HTTP ${response.status}` +
+              (response.status === 401 ? " — CONNECTOR_SHARED_SECRET mismatch?" : ""),
           );
           return;
         }
@@ -47,6 +53,7 @@ export class BackendClient {
           console.error(
             `giving up forwarding inbound ${message.providerMessageId} after ${attempt} attempts:`,
             error instanceof Error ? error.message : error,
+            `— is the backend running on ${this.config.backendUrl}?`,
           );
           return;
         }

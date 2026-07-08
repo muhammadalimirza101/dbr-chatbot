@@ -162,15 +162,32 @@ export class BaileysTransport implements WhatsAppTransport {
   private async handleInbound(message: WAMessage): Promise<void> {
     try {
       if (!this.handler) return;
-      const jid = message.key.remoteJid;
+      const messageId = message.key.id ?? "?";
+      let jid = message.key.remoteJid;
+      // WhatsApp LID privacy addressing: the chat arrives as <id>@lid and the
+      // real phone jid travels in remoteJidAlt — use it, or we can't route
+      const alt = (message.key as { remoteJidAlt?: string | null }).remoteJidAlt;
+      if (jid?.endsWith("@lid") && alt?.endsWith("@s.whatsapp.net")) {
+        jid = alt;
+      }
       // transport scope: direct customer chats only — no groups, no status,
-      // no own messages
-      if (!jid || message.key.fromMe) return;
-      if (!jid.endsWith("@s.whatsapp.net")) return;
+      // no own messages. Log every drop so silence is never a mystery.
+      if (!jid || message.key.fromMe) {
+        console.log(`inbound ${messageId}: ignored (own message)`);
+        return;
+      }
+      if (!jid.endsWith("@s.whatsapp.net")) {
+        const kind = jid.endsWith("@g.us") ? "group" : jid.split("@")[1] ?? "unknown";
+        console.log(`inbound ${messageId}: ignored (${kind} chat, not a direct customer)`);
+        return;
+      }
       const content = message.message;
-      if (!content) return;
+      if (!content) {
+        console.log(`inbound ${messageId}: ignored (no content — receipt/protocol event)`);
+        return;
+      }
 
-      const phone = jid.split("@")[0];
+      const phone = jid.split("@")[0].split(":")[0];
       const providerMessageId = message.key.id ?? `${jid}:${message.messageTimestamp}`;
       const timestamp = new Date(Number(message.messageTimestamp) * 1000).toISOString();
       const base = { phone, providerMessageId, timestamp } as const;
@@ -207,7 +224,9 @@ export class BaileysTransport implements WhatsAppTransport {
         });
         return;
       }
-      // other types (stickers, reactions, polls…) are ignored by design
+      console.log(
+        `inbound ${messageId}: ignored (unsupported type: ${Object.keys(content).join(",")})`,
+      );
     } catch (error) {
       console.error(
         `failed to process inbound ${message.key?.id}:`,
