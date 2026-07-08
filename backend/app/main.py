@@ -10,7 +10,20 @@ from slowapi.extension import _rate_limit_exceeded_handler
 
 from app.config import get_settings
 from app.database import async_session_factory, engine
-from app.routers import auth, health, internal, kb, webhook
+from app.routers import (
+    analytics,
+    auth,
+    conversations,
+    customers,
+    health,
+    internal,
+    kb,
+    leads,
+    media,
+    unanswered,
+    users,
+    webhook,
+)
 from app.routers.auth import limiter
 from app.services.embeddings import embedding_cache
 
@@ -47,9 +60,16 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(unanswered.router)  # before kb: /kb/unanswered vs /kb/{id}
     app.include_router(kb.router)
     app.include_router(webhook.router)
     app.include_router(internal.router)
+    app.include_router(conversations.router)
+    app.include_router(leads.router)
+    app.include_router(customers.router)
+    app.include_router(users.router)
+    app.include_router(media.router)
+    app.include_router(analytics.router)
     return app
 
 

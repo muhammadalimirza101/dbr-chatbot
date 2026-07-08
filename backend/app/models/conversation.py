@@ -79,6 +79,9 @@ class Message(Base):
     )
     # provider message id from the connector, used to deduplicate deliveries
     provider_message_id: Mapped[str | None] = mapped_column(String(128), unique=True)
+    # which pipeline route produced a bot reply: cache | rag | open
+    # (drives the FAQ cache-hit-rate analytics)
+    pipeline_route: Mapped[str | None] = mapped_column(String(10))
     tokens_used: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

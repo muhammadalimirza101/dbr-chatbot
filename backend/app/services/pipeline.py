@@ -232,7 +232,7 @@ async def _process(
         )
         total_tokens += summary_tokens
 
-    await _send_and_store(session, conversation, customer, reply, total_tokens)
+    await _send_and_store(session, conversation, customer, reply, total_tokens, route)
     await session.commit()
 
 
@@ -373,6 +373,7 @@ async def _send_and_store(
     customer: Customer,
     text: str,
     tokens: int,
+    route: Route | None = None,
 ) -> None:
     try:
         await connector.send_text(customer.phone, text)
@@ -386,6 +387,7 @@ async def _send_and_store(
         sender_type=SenderType.BOT,
         content_type=ContentType.TEXT,
         content_text=text,
+        pipeline_route=route.value if route else None,
         tokens_used=tokens or None,
     )
     session.add(outbound)
