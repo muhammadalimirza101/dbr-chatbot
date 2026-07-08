@@ -5,15 +5,20 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi.extension import _rate_limit_exceeded_handler
 
 from app.config import get_settings
-from app.database import engine
-from app.routers import health
+from app.database import async_session_factory, engine
+from app.routers import auth, health, kb
+from app.routers.auth import limiter
+from app.services.embeddings import embedding_cache
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # Phase 2 will load the KB embedding cache here.
+    async with async_session_factory() as session:
+        await embedding_cache.load(session)
     yield
     await engine.dispose()
 
@@ -29,6 +34,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.dashboard_origin],  # exact origin only, never "*"
@@ -38,6 +46,8 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(auth.router)
+    app.include_router(kb.router)
     return app
 
 
