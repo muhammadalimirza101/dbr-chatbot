@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     whatsapp_session_dir: str
     connector_shared_secret: str
 
+    # optional, sensible local defaults
+    connector_url: str = "http://127.0.0.1:3001"
+    media_storage_dir: str = "media_storage"
+    # spend guard: per conversation per UTC day, across all models
+    daily_token_cap_per_conversation: int = 25000
+
 
 @lru_cache
 def get_settings() -> Settings:
