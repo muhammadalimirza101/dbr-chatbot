@@ -1,12 +1,28 @@
 """Threshold routing rules from CLAUDE.md, as a pure function."""
 
+from datetime import UTC, datetime, timedelta
+
+from app.models import Message
+from app.models.enums import ContentType, MessageDirection, SenderType
 from app.services.pipeline import (
     CACHE_THRESHOLD,
     RAG_THRESHOLD,
     Route,
+    _is_repeat,
     decide_route,
     normalize_for_repeat_check,
 )
+
+
+def inbound(text: str, minutes_ago: float) -> Message:
+    return Message(
+        conversation_id=1,
+        direction=MessageDirection.INBOUND,
+        sender_type=SenderType.CUSTOMER,
+        content_type=ContentType.TEXT,
+        content_text=text,
+        created_at=datetime.now(UTC) - timedelta(minutes=minutes_ago),
+    )
 
 
 def test_high_similarity_english_returns_cache() -> None:
@@ -43,3 +59,24 @@ def test_repeat_normalization() -> None:
     b = normalize_for_repeat_check("what time is the FERRY")
     assert a == b
     assert normalize_for_repeat_check("different question") != a
+
+
+def test_recent_repeated_question_is_stuck() -> None:
+    history = [inbound("What time is the ferry?", minutes_ago=2)]
+    assert _is_repeat(history, "what time is the FERRY??") is True
+
+
+def test_greeting_repeat_is_never_stuck() -> None:
+    # regression: "Hello" days after a previous "Hello" must not hand off
+    history = [inbound("Hello", minutes_ago=3)]
+    assert _is_repeat(history, "Hello") is False
+
+
+def test_old_repeat_outside_window_is_not_stuck() -> None:
+    history = [inbound("What time is the ferry?", minutes_ago=60 * 24 * 3)]
+    assert _is_repeat(history, "What time is the ferry?") is False
+
+
+def test_different_question_is_not_stuck() -> None:
+    history = [inbound("What time is the ferry?", minutes_ago=1)]
+    assert _is_repeat(history, "Do you have family rooms available?") is False

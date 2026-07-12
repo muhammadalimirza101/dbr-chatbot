@@ -12,7 +12,7 @@ import base64
 import binascii
 import logging
 import re
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from enum import StrEnum
 
 from sqlalchemy import func, select
@@ -56,6 +56,11 @@ logger = logging.getLogger(__name__)
 CACHE_THRESHOLD = 0.90
 RAG_THRESHOLD = 0.75
 HISTORY_WINDOW = 12
+
+# bot-stuck repeat detection: only a *recent*, *substantial* duplicate counts.
+# Greetings ("hello" again days later) must never read as frustration.
+REPEAT_WINDOW = timedelta(minutes=10)
+REPEAT_MIN_WORDS = 3
 
 BOOKING_INTENTS = {"room_booking", "event_wedding", "corporate", "day_trip"}
 HIGH_VALUE_INTENTS = {"event_wedding", "corporate"}
@@ -169,7 +174,7 @@ async def _process(
 
     # 5) handoff triggers: explicit request, frustration, repeated question
     if analysis.wants_human or analysis.frustrated or _is_repeat(
-        history_rows, effective_text
+        history_rows, effective_text, message.created_at
     ):
         reason = "customer_request" if analysis.wants_human else (
             "frustrated" if analysis.frustrated else "bot_stuck"
@@ -298,16 +303,27 @@ def _as_turns(rows: list[Message]) -> list[dict[str, str]]:
     return turns
 
 
-def _is_repeat(history: list[Message], newest: str) -> bool:
-    """Same question twice in a row (and the bot already answered) = stuck."""
+def _is_repeat(
+    history: list[Message], newest: str, newest_at: datetime | None = None
+) -> bool:
+    """Same substantial question twice in a row, recently = stuck.
+
+    Guards against false positives: the previous identical message must be
+    within REPEAT_WINDOW, and greetings/very short messages never count.
+    """
+    normalized = normalize_for_repeat_check(newest)
+    if len(normalized.split()) < REPEAT_MIN_WORDS:
+        return False
     previous_inbound = [
         m for m in history if m.direction == MessageDirection.INBOUND and _message_text(m)
     ]
     if not previous_inbound:
         return False
-    return normalize_for_repeat_check(_message_text(previous_inbound[-1])) == (
-        normalize_for_repeat_check(newest)
-    )
+    previous = previous_inbound[-1]
+    reference_time = newest_at or datetime.now(UTC)
+    if reference_time - previous.created_at > REPEAT_WINDOW:
+        return False
+    return normalize_for_repeat_check(_message_text(previous)) == normalized
 
 
 async def _kb_entries(
