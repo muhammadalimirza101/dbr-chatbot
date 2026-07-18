@@ -20,8 +20,10 @@ class Settings(BaseSettings):
     openai_api_key: str
     jwt_secret: str
     dashboard_origin: str
-    whatsapp_session_dir: str
     connector_shared_secret: str
+    # consumed by the connector only; optional here so the backend can be
+    # deployed without it
+    whatsapp_session_dir: str = ""
 
     # optional, sensible local defaults
     connector_url: str = "http://127.0.0.1:3001"

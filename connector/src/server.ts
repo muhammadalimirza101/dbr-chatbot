@@ -73,6 +73,11 @@ export function createServer(config: ConnectorConfig, transport: WhatsAppTranspo
   app.disable("x-powered-by");
   app.use(express.json({ limit: "64kb" })); // media travels by id, not payload
 
+  // unauthenticated liveness probe for platform health checks — status only
+  app.get("/healthz", (_req: Request, res: Response) => {
+    res.json({ ok: true });
+  });
+
   app.use((req: Request, res: Response, next: NextFunction) => {
     const provided = req.header(SECRET_HEADER);
     if (!provided || !secretsMatch(provided, config.sharedSecret)) {

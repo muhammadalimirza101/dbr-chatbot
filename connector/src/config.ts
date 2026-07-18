@@ -23,8 +23,12 @@ export interface ConnectorConfig {
   sessionDir: string;
   sharedSecret: string;
   backendUrl: string;
-  /** Port for the localhost-only internal HTTP server */
+  /** Port for the internal HTTP server (PaaS platforms inject PORT) */
   port: number;
+  /** Bind address. 127.0.0.1 locally; set CONNECTOR_HOST=0.0.0.0 on a PaaS
+   * where the backend reaches this service over the platform network —
+   * every request still requires the shared secret. */
+  host: string;
 }
 
 export function loadConfig(): ConnectorConfig {
@@ -43,6 +47,7 @@ export function loadConfig(): ConnectorConfig {
     sessionDir,
     sharedSecret: required("CONNECTOR_SHARED_SECRET"),
     backendUrl: (process.env.BACKEND_URL ?? "http://127.0.0.1:8000").replace(/\/$/, ""),
-    port: Number(process.env.CONNECTOR_PORT ?? 3001),
+    port: Number(process.env.PORT ?? process.env.CONNECTOR_PORT ?? 3001),
+    host: process.env.CONNECTOR_HOST ?? "127.0.0.1",
   };
 }

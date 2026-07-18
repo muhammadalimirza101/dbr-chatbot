@@ -16,9 +16,9 @@ async function main(): Promise<void> {
   transport.onMessageReceived((message) => backend.forwardInbound(message));
 
   const app = createServer(config, transport);
-  // localhost only — never expose this port
-  app.listen(config.port, "127.0.0.1", () => {
-    console.log(`connector internal API on 127.0.0.1:${config.port}`);
+  // 127.0.0.1 locally; 0.0.0.0 only on a PaaS (see CONNECTOR_HOST in config)
+  app.listen(config.port, config.host, () => {
+    console.log(`connector internal API on ${config.host}:${config.port}`);
   });
 
   await transport.start();
