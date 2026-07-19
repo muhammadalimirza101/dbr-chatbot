@@ -9,13 +9,14 @@
 import makeWASocket, {
   DisconnectReason,
   downloadMediaMessage,
-  useMultiFileAuthState,
+  makeCacheableSignalKeyStore,
   type WAMessage,
 } from "baileys";
 import { Boom } from "@hapi/boom";
 import pino from "pino";
 import qrcode from "qrcode-terminal";
 
+import type { AuthProvider } from "./authState.js";
 import type { ConnectorConfig } from "./config.js";
 import { SendQueue } from "./queue.js";
 import type {
@@ -43,6 +44,10 @@ export class BaileysTransport implements WhatsAppTransport {
   constructor(
     private readonly config: ConnectorConfig,
     private readonly fetchMedia: MediaFetcher,
+    /** Fresh auth state per (re)connect — files or Postgres-backed. */
+    private readonly authProvider: () => Promise<AuthProvider>,
+    /** Called when WhatsApp reports the device was logged out. */
+    private readonly onLoggedOut?: () => Promise<void>,
   ) {}
 
   onMessageReceived(handler: (message: InboundMessage) => Promise<void>): void {
@@ -54,10 +59,14 @@ export class BaileysTransport implements WhatsAppTransport {
   }
 
   async start(): Promise<void> {
-    const { state, saveCreds } = await useMultiFileAuthState(this.config.sessionDir);
+    const { state, saveCreds } = await this.authProvider();
 
     const socket = makeWASocket({
-      auth: state,
+      auth: {
+        creds: state.creds,
+        // cache layer keeps hot signal keys in memory (fewer store reads)
+        keys: makeCacheableSignalKeyStore(state.keys, logger),
+      },
       logger,
       markOnlineOnConnect: false, // keep the phone's own notifications working
       syncFullHistory: false,
@@ -80,9 +89,12 @@ export class BaileysTransport implements WhatsAppTransport {
         this.connected = false;
         const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
         if (statusCode === DisconnectReason.loggedOut) {
-          console.error(
-            "Session logged out. Delete the session directory contents and re-pair.",
-          );
+          console.error("Session logged out by WhatsApp.");
+          if (this.onLoggedOut) {
+            void this.onLoggedOut();
+          } else {
+            console.error("Delete the session directory contents and re-pair.");
+          }
           return;
         }
         if (!this.stopping) {

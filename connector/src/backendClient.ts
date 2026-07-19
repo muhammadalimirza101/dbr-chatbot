@@ -62,6 +62,48 @@ export class BackendClient {
     }
   }
 
+  /** Baileys auth-state storage via the backend (values are opaque
+   * BufferJSON strings). Auth writes must be durable, so failures retry
+   * and then throw — losing session keys would force a re-pair. */
+  async authGet(keys: string[]): Promise<Record<string, string | null>> {
+    const response = await this.authRequest("/internal/wa-auth/get", { keys });
+    return (response as { values: Record<string, string | null> }).values;
+  }
+
+  async authSet(values: Record<string, string | null>): Promise<void> {
+    await this.authRequest("/internal/wa-auth/set", { values });
+  }
+
+  async authClear(): Promise<void> {
+    await this.authRequest("/internal/wa-auth/clear", undefined);
+  }
+
+  private async authRequest(path: string, body: unknown): Promise<unknown> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await fetch(`${this.config.backendUrl}${path}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            [SECRET_HEADER]: this.config.sharedSecret,
+          },
+          body: body !== undefined ? JSON.stringify(body) : "{}",
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        lastError = error;
+        if (attempt < 3) await sleep(1000 * attempt);
+      }
+    }
+    throw new Error(
+      `wa-auth request ${path} failed after 3 attempts: ` +
+        (lastError instanceof Error ? lastError.message : String(lastError)),
+    );
+  }
+
   /** Download a media asset's bytes from the backend internal endpoint. */
   async fetchMedia(mediaId: string): Promise<{ bytes: Buffer; mimeType: string }> {
     const response = await fetch(

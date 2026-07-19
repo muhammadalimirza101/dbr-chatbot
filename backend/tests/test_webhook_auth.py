@@ -80,3 +80,20 @@ async def test_internal_media_requires_secret(client: httpx.AsyncClient) -> None
     async with client as c:
         response = await c.get("/internal/media/1")
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path,body",
+    [
+        ("/internal/wa-auth/get", {"keys": ["creds"]}),
+        ("/internal/wa-auth/set", {"values": {"creds": "x"}}),
+        ("/internal/wa-auth/clear", {}),
+    ],
+)
+async def test_wa_auth_requires_secret(
+    client: httpx.AsyncClient, path: str, body: dict
+) -> None:
+    async with client as c:
+        response = await c.post(path, json=body)
+    assert response.status_code == 401

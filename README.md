@@ -64,7 +64,13 @@ cd dashboard; npm run dev     # http://localhost:5173
 ```
 
 ### Pairing WhatsApp (one time)
-Start the connector, then on the resort's phone: **WhatsApp → Linked devices → Link a device** and scan the QR shown in the terminal. The session persists in `WHATSAPP_SESSION_DIR`; if the terminal ever says "logged out", clear that directory and re-pair. Those session files grant full control of the WhatsApp number — never copy or commit them.
+Start the connector, then on the resort's phone: **WhatsApp → Linked devices → Link a device** and scan the QR shown in the terminal. Session material grants full control of the WhatsApp number — never copy or commit it.
+
+Two storage modes for the session (`WA_AUTH_STORE`):
+- `files` (default, local dev): persists to `WHATSAPP_SESSION_DIR`.
+- `postgres` (recommended for cloud): persists to the `wa_auth_state` table via the backend's shared-secret internal API — restarts and redeploys reconnect **without re-scanning the QR**, and no disk is needed. Set `WA_AUTH_STORE=postgres` on the connector service (`WHATSAPP_SESSION_DIR` is then not required).
+
+**Switching to a new WhatsApp number** (postgres mode): unlink the old device from the old phone, set `WA_RESET_SESSION=true` on the connector and redeploy → session wipes and a fresh QR prints → scan with the new phone → **remove** `WA_RESET_SESSION`. If WhatsApp itself logs the device out, the connector auto-clears the stored session and restarts into pairing mode.
 
 ---
 

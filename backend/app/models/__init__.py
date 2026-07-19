@@ -9,6 +9,7 @@ from app.models.kb import KnowledgeBase, UnansweredQuestion
 from app.models.lead import Lead
 from app.models.media import MediaAsset
 from app.models.user import User
+from app.models.wa_auth import WAAuthState
 
 __all__ = [
     "AuditLog",
@@ -20,4 +21,5 @@ __all__ = [
     "Message",
     "UnansweredQuestion",
     "User",
+    "WAAuthState",
 ]

@@ -20,6 +20,13 @@ function required(name: string): string {
 }
 
 export interface ConnectorConfig {
+  /** Where Baileys session material lives: local files or Postgres via the
+   * backend's /internal/wa-auth endpoints (survives redeploys, no disk). */
+  authStore: "files" | "postgres";
+  /** Wipe the stored session on boot (set WA_RESET_SESSION=true once when
+   * switching to a new WhatsApp number, then remove it). */
+  resetSession: boolean;
+  /** Only used when authStore = "files". */
   sessionDir: string;
   sharedSecret: string;
   backendUrl: string;
@@ -32,18 +39,28 @@ export interface ConnectorConfig {
 }
 
 export function loadConfig(): ConnectorConfig {
-  const sessionDir = required("WHATSAPP_SESSION_DIR");
-  if (path.resolve(sessionDir).startsWith(repoRoot)) {
-    throw new Error(
-      "WHATSAPP_SESSION_DIR must be OUTSIDE the repository — session files grant full control of the WhatsApp account",
-    );
+  const authStore = (process.env.WA_AUTH_STORE ?? "files") as "files" | "postgres";
+  if (authStore !== "files" && authStore !== "postgres") {
+    throw new Error(`WA_AUTH_STORE must be "files" or "postgres"`);
   }
-  if (!existsSync(sessionDir)) {
-    // 0o700: owner-only. POSIX perms are a no-op on Windows (NTFS ACLs apply);
-    // the dir lives under the user profile, which is owner-restricted by default.
-    mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
+
+  let sessionDir = "";
+  if (authStore === "files") {
+    sessionDir = required("WHATSAPP_SESSION_DIR");
+    if (path.resolve(sessionDir).startsWith(repoRoot)) {
+      throw new Error(
+        "WHATSAPP_SESSION_DIR must be OUTSIDE the repository — session files grant full control of the WhatsApp account",
+      );
+    }
+    if (!existsSync(sessionDir)) {
+      // 0o700: owner-only. POSIX perms are a no-op on Windows (NTFS ACLs
+      // apply); the dir lives under the user profile, owner-restricted.
+      mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
+    }
   }
   return {
+    authStore,
+    resetSession: (process.env.WA_RESET_SESSION ?? "").toLowerCase() === "true",
     sessionDir,
     sharedSecret: required("CONNECTOR_SHARED_SECRET"),
     backendUrl: (process.env.BACKEND_URL ?? "http://127.0.0.1:8000").replace(/\/$/, ""),
