@@ -19,11 +19,18 @@ export default function Login() {
       await login(email, password);
       navigate("/conversations", { replace: true });
     } catch (err) {
-      setError(
-        err instanceof ApiError && err.status === 429
-          ? "Too many attempts — wait a minute and try again."
-          : "Invalid email or password.",
-      );
+      if (err instanceof ApiError && err.status === 429) {
+        setError("Too many attempts — wait a minute and try again.");
+      } else if (err instanceof ApiError && err.status === 401) {
+        setError("Invalid email or password.");
+      } else {
+        // network/CORS failure — the request never reached the backend
+        setError(
+          "Can't reach the server. The backend may be waking up (free tier) " +
+            "or the dashboard isn't allowed to talk to it yet — try again in " +
+            "a minute.",
+        );
+      }
     } finally {
       setBusy(false);
     }
