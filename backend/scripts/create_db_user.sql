@@ -1,16 +1,27 @@
 -- Least-privilege application role for production.
--- Run as the postgres superuser, ONCE, after migrations have been applied:
---   psql -U postgres -d dbr_chatbot -f scripts/create_db_user.sql
+-- Works on any Postgres (local, Supabase, RDS): it grants on whatever
+-- database you run it in — no hardcoded database name.
 --
--- Replace CHANGE_ME with a strong generated password, then set it in .env:
---   DATABASE_URL=postgresql+asyncpg://dbr_app:<password>@localhost:5432/dbr_chatbot
+-- Local:    psql -U postgres -d dbr_chatbot -f scripts/create_db_user.sql
+-- Supabase: paste into the SQL Editor and Run.
 --
--- The app role can read/write data but cannot DROP tables, create roles,
--- or alter the schema. Alembic migrations keep running as the table owner.
+-- Replace CHANGE_ME with a STRONG generated password first, e.g.:
+--   python -c "import secrets; print(secrets.token_urlsafe(24))"
+-- Then use dbr_app in DATABASE_URL. On Supabase's pooler the username
+-- becomes dbr_app.<project-ref> (same suffix as your postgres user).
+--
+-- Keep running Alembic migrations as the owner user, not dbr_app.
 
-CREATE ROLE dbr_app LOGIN PASSWORD 'CHANGE_ME';
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbr_app') THEN
+        CREATE ROLE dbr_app LOGIN PASSWORD 'CHANGE_ME';
+    ELSE
+        ALTER ROLE dbr_app WITH LOGIN PASSWORD 'CHANGE_ME';
+    END IF;
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO dbr_app', current_database());
+END $$;
 
-GRANT CONNECT ON DATABASE dbr_chatbot TO dbr_app;
 GRANT USAGE ON SCHEMA public TO dbr_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dbr_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dbr_app;
